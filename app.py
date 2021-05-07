@@ -5,6 +5,7 @@
 import json
 import dateutil.parser
 import babel
+import sys
 from flask import Flask, render_template, jsonify, request, Response, flash, redirect, url_for
 from flask_moment import Moment
 from flask_migrate import Migrate
@@ -42,9 +43,12 @@ class Venue(db.Model):
     state = db.Column(db.String(120), nullable=False)
     address = db.Column(db.String(120), nullable=False)
     phone = db.Column(db.String(120), nullable=False)
-    image_link = db.Column(db.String(500), nullable=False)
+    image_link = db.Column(db.String(500))
     facebook_link = db.Column(db.String(120))
-
+    website = db.Column(db.String(100))
+    seeking_talent = db.Column(db.Boolean, default=False)
+    seeking_description = db.Column(db.String())
+    genres = db.Column('genres', db.ARRAY(db.String(20)))
 
     # TODO: implement any missing fields, as a database migration using Flask-Migrate
 
@@ -135,24 +139,60 @@ def create_venue_form():
 
 @app.route('/venues/create', methods=['POST'])
 def create_venue_submission():
-  # TODO: insert form data as a new Venue record in the db, instead
-  # TODO: modify data to be the data object returned from db insertion
+  error = False
+  # DONE: insert form data as a new Venue record in the db, instead
+  try:
+    form = VenueForm()
+    newVenue = Venue(
+      name = form.name.data, 
+      city = form.city.data, 
+      state = form.state.data,
+      address = form.address.data, 
+      phone = form.phone.data, 
+      genres = form.genres.data, 
+      facebook_link = form.facebook_link.data, 
+      image_link = form.image_link.data, 
+      website = form.website_link.data, 
+      seeking_description = form.seeking_description.data, 
+      seeking_talent = form.seeking_talent.data
+    )
+    db.session.add(newVenue)
+    db.session.commit()
+    # on successful db insert, flash success
+    flash('Venue ' + request.form['name'] + ' was successfully listed!')
+  except:
+    error = True
+    db.session.rollback()
+    # TODO: on unsuccessful db insert, flash an error instead.
+    flash('An error occurred. Venue ' + form.name.data + ' could not be listed.')
+  finally:
+    db.session.close()
+    return redirect(url_for('index'))
 
-  # on successful db insert, flash success
-  flash('Venue ' + request.form['name'] + ' was successfully listed!')
-  # TODO: on unsuccessful db insert, flash an error instead.
   # e.g., flash('An error occurred. Venue ' + data.name + ' could not be listed.')
   # see: http://flask.pocoo.org/docs/1.0/patterns/flashing/
   return render_template('pages/home.html')
 
 @app.route('/venues/<venue_id>', methods=['DELETE'])
 def delete_venue(venue_id):
+  print(venue_id)
+  try:
+    venue = Venue.query.filter_by(id = venue_id).delete()
+    db.session.commit()
+    flash('Venue was successfully deleted!')
+  except:
+    db.session.rollback()
+    flash('An error occurred. Venue could not be deleted.')
+  finally:
+    db.session.close()
+    return jsonify({'success': True})
+  
+  return redirect(url_for('index'))
   # TODO: Complete this endpoint for taking a venue_id, and using
   # SQLAlchemy ORM to delete a record. Handle cases where the session commit could fail.
 
   # BONUS CHALLENGE: Implement a button to delete a Venue on a Venue Page, have it so that
   # clicking that button delete it from the db then redirect the user to the homepage
-  return None
 
 #  Artists
 #  ----------------------------------------------------------------

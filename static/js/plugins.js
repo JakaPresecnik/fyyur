@@ -18,3 +18,19 @@ window.log = function(){
 
 // place any jQuery/helper plugins in here, instead of separate, slower script files.
 
+const deleteButtons = document.querySelectorAll('.delete-venue');
+for (let i = 0; i < deleteButtons.length; i++) {
+    deleteButtons[i].onclick = e => {
+        const todoId = e.target.dataset['id'];
+        fetch('/venues/' + todoId, {
+            method: 'DELETE',
+        })
+        .then(res => {
+          if(res.ok) {
+            window.location.replace('/')
+          }else {
+            console.log('Error eigther rederectig or deleting')
+          }
+        })
+    }
+} 
