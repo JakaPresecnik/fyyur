@@ -7,7 +7,16 @@ import dateutil.parser
 import babel
 import sys
 import datetime
-from flask import Flask, render_template, jsonify, request, Response, flash, redirect, url_for
+from flask import (
+  Flask, 
+  render_template, 
+  jsonify, 
+  request, 
+  Response, 
+  flash, 
+  redirect, 
+  url_for
+)
 import logging
 from logging import Formatter, FileHandler
 from flask_wtf import Form
@@ -81,20 +90,20 @@ def show_venue(venue_id):
   # shows the venue page with the given venue_id
   # DONE: replace with real venue data from the venues table, using venue_id
   # d = Venue.query(Venue).join(Venue.shows)
-  data = Venue.query.filter_by(id = venue_id).join(Venue.shows).first()
+  data = Venue.query.first_or_404(venue_id)
 
   upcoming_shows = []
   past_shows = []
-  if hasattr(data, 'shows'):
-    for show in data.shows:
-      upcoming = datetime.datetime.now() < show.start_time
-      show.start_time = format_datetime(str(show.start_time))
-      show.artist_image_link = show.artist_shows.image_link
-      show.artist_name = show.artist_shows.name
-      if upcoming:
-        upcoming_shows.append(show)
-      else:
-        past_shows.append(show)
+
+  for show in data.shows:
+    upcoming = datetime.datetime.now() < show.start_time
+    show.start_time = format_datetime(str(show.start_time))
+    show.artist_image_link = show.artist_shows.image_link
+    show.artist_name = show.artist_shows.name
+    if upcoming:
+      upcoming_shows.append(show)
+    else:
+      past_shows.append(show)
   
     setattr(data, 'upcoming_shows', upcoming_shows)
     setattr(data, 'past_shows', past_shows)
@@ -115,10 +124,12 @@ def create_venue_form():
 
 @app.route('/venues/create', methods=['POST'])
 def create_venue_submission():
-  error = False
+  form = VenueForm()
+  if not form.validate_on_submit():
+      flash(form.errors)
+      return render_template('forms/new_venue.html', form=form)
   # DONE: insert form data as a new Venue record in the db, instead
   try:
-    form = VenueForm()
     newVenue = Venue(
       name = form.name.data, 
       city = form.city.data, 
@@ -147,7 +158,6 @@ def create_venue_submission():
 
   # e.g., flash('An error occurred. Venue ' + data.name + ' could not be listed.')
   # see: http://flask.pocoo.org/docs/1.0/patterns/flashing/
-  return render_template('pages/home.html')
 
 @app.route('/venues/<venue_id>', methods=['DELETE'])
 def delete_venue(venue_id):
@@ -197,11 +207,11 @@ def show_artist(artist_id):
   # shows the artist page with the given artist_id
   # DONE: replace with real artist data from the artist table, using artist_id
   data = Artist.query.get(artist_id)
-  shows = Show.query.filter_by(artist_id = artist_id)
+
   upcoming_shows = []
   past_shows = []
 
-  for show in shows:
+  for show in data.shows:
     upcoming = datetime.datetime.now() < show.start_time
     show.start_time = format_datetime(str(show.start_time))
     show.venue_image_link = show.venue_shows.image_link
@@ -227,9 +237,11 @@ def create_artist_form():
 
 @app.route('/artists/create', methods=['POST'])
 def create_artist_submission():
+  form = ArtistForm()
+  if not form.validate_on_submit():
+    flash(form.errors)
+    return render_template('forms/new_artist.html', form=form)
   try:
-    form = ArtistForm()
-
     newArtist = Artist(
       name = form.name.data, 
       city = form.city.data, 
