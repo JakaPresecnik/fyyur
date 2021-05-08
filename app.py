@@ -8,77 +8,11 @@ import babel
 import sys
 import datetime
 from flask import Flask, render_template, jsonify, request, Response, flash, redirect, url_for
-from flask_moment import Moment
-from flask_migrate import Migrate
-from flask_sqlalchemy import SQLAlchemy
 import logging
 from logging import Formatter, FileHandler
 from flask_wtf import Form
 from forms import *
-#----------------------------------------------------------------------------#
-# App Config.
-#----------------------------------------------------------------------------#
-
-app = Flask(__name__)
-moment = Moment(app)
-app.config.from_object('config')
-
-db = SQLAlchemy(app)
-
-migrate = Migrate(app, db)
-
-# DONE: connect to a local postgresql database
-
-#----------------------------------------------------------------------------#
-# Models.
-#----------------------------------------------------------------------------#
-
-class Venue(db.Model):
-    __tablename__ = 'venues'
-
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String, nullable=False)
-    city = db.Column(db.String(120), nullable=False)
-    state = db.Column(db.String(120), nullable=False)
-    address = db.Column(db.String(120), nullable=False)
-    phone = db.Column(db.String(120), nullable=False)
-    image_link = db.Column(db.String(500))
-    facebook_link = db.Column(db.String(120))
-    website = db.Column(db.String(100))
-    seeking_talent = db.Column(db.Boolean, default=False)
-    seeking_description = db.Column(db.String())
-    genres = db.Column('genres', db.ARRAY(db.String(20)))
-    shows = db.relationship('Show', backref='venue_shows', lazy=True)
-
-    # TODO: implement any missing fields, as a database migration using Flask-Migrate
-
-class Artist(db.Model):
-    __tablename__ = 'artists'
-
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String, nullable=False)
-    city = db.Column(db.String(120), nullable=False)
-    state = db.Column(db.String(120), nullable=False)
-    phone = db.Column(db.String(120), nullable=False)
-    genres = db.Column('genres', db.ARRAY(db.String(20)))
-    image_link = db.Column(db.String(500))
-    facebook_link = db.Column(db.String(120))
-    website = db.Column(db.String(100))
-    seeking_venue = db.Column(db.Boolean, default=False)
-    seeking_description = db.Column(db.String())
-    shows = db.relationship('Show', backref='artist_shows', lazy=True)
-
-    # TODO: implement any missing fields, as a database migration using Flask-Migrate
-
-class Show(db.Model):
-  __tablename__ = 'shows'
-
-  id = db.Column(db.Integer, primary_key=True)
-  venue_id = db.Column(db.Integer, db.ForeignKey('venues.id'), nullable=False)
-  artist_id = db.Column(db.Integer, db.ForeignKey('artists.id'), nullable=False)
-  start_time = db.Column(db.DateTime, nullable=False)
-
-# TODO Implement Show and Artist models, and complete all model relationships and properties, as a database migration.
+from models import *
 
 #----------------------------------------------------------------------------#
 # Filters.
@@ -112,12 +46,11 @@ def venues():
   #       num_shows should be aggregated based on number of upcoming shows per venue.
   # Array needed to sort the venues by state 
   data = []
-
-  for location in Venue.query.distinct(Venue.state):
+  for location in Venue.query.distinct(Venue.state, Venue.city):
     venues_data = []
-    venues = Venue.query.filter_by(state=location.state).with_entities(Venue.id, Venue.name)
+    venues = Venue.query.filter(Venue.state == location.state, Venue.city == location.city).with_entities(Venue.id, Venue.name)
     for venue in venues:
-      num_upcoming_shows = Show.query.filter(Show.venue_id == venue.id, Show.start_time > datetime.now()).count()    
+      num_upcoming_shows = Show.query.filter(Show.venue_id == venue.id, Show.start_time > datetime.datetime.now()).count()    
       venues_data.append({"id": venue.id, "name": venue.name, "num_upcoming_shows": num_upcoming_shows})
 
     data.append({"city": location.city, "state": location.state, "venues": venues_data})
@@ -133,7 +66,7 @@ def search_venues():
   search_results_data = []
   search_results = Venue.query.filter(Venue.name.ilike('%' + search_term +'%')).with_entities(Venue.id, Venue.name)
   for result in search_results:
-    num_upcoming_shows = Show.query.filter(Show.venue_id == result.id, Show.start_time > datetime.now()).count()    
+    num_upcoming_shows = Show.query.filter(Show.venue_id == result.id, Show.start_time > datetime.datetime.now()).count()    
     
     search_results_data.append({"id": result.id, "name": result.name, "num_upcoming_shows": num_upcoming_shows})
   
@@ -147,25 +80,28 @@ def search_venues():
 def show_venue(venue_id):
   # shows the venue page with the given venue_id
   # DONE: replace with real venue data from the venues table, using venue_id
-  data = Venue.query.get(venue_id)
-  shows = Show.query.filter_by(venue_id = venue_id)
+  # d = Venue.query(Venue).join(Venue.shows)
+  data = Venue.query.filter_by(id = venue_id).join(Venue.shows).first()
+
   upcoming_shows = []
   past_shows = []
-
-  for show in shows:
-    upcoming = datetime.now() < show.start_time
-    show.start_time = format_datetime(str(show.start_time))
-    show.artist_image_link = show.artist_shows.image_link
-    show.artist_name = show.artist_shows.name
-    if upcoming:
-      upcoming_shows.append(show)
-    else:
-      past_shows.append(show)
+  if hasattr(data, 'shows'):
+    for show in data.shows:
+      upcoming = datetime.datetime.now() < show.start_time
+      show.start_time = format_datetime(str(show.start_time))
+      show.artist_image_link = show.artist_shows.image_link
+      show.artist_name = show.artist_shows.name
+      if upcoming:
+        upcoming_shows.append(show)
+      else:
+        past_shows.append(show)
   
-  setattr(data, 'upcoming_shows', upcoming_shows)
-  setattr(data, 'past_shows', past_shows)
-  setattr(data, 'upcoming_shows_count', len(upcoming_shows))
-  setattr(data, 'past_shows_count', len(past_shows))
+    setattr(data, 'upcoming_shows', upcoming_shows)
+    setattr(data, 'past_shows', past_shows)
+    setattr(data, 'upcoming_shows_count', len(upcoming_shows))
+    setattr(data, 'past_shows_count', len(past_shows))
+  else:
+    data = Venue.query.get(venue_id)
 
   return render_template('pages/show_venue.html', venue=data)
 
@@ -266,7 +202,7 @@ def show_artist(artist_id):
   past_shows = []
 
   for show in shows:
-    upcoming = datetime.now() < show.start_time
+    upcoming = datetime.datetime.now() < show.start_time
     show.start_time = format_datetime(str(show.start_time))
     show.venue_image_link = show.venue_shows.image_link
     show.venue_name = show.venue_shows.name
@@ -450,7 +386,7 @@ def shows():
   past_shows = []
 
   for show in shows:
-    upcoming = datetime.now() < show.start_time
+    upcoming = datetime.datetime.now() < show.start_time
     show.start_time = format_datetime(str(show.start_time))
     show.venue_name = show.venue_shows.name
     show.artist_image_link = show.artist_shows.image_link
